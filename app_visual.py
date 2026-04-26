@@ -102,8 +102,8 @@ with tab1:
     
     with col1:
         st.subheader("📍 Location")
-        lat = st.number_input("Latitude", value=40.7128, min=-90.0, max=90.0, format="%.4f")
-        lon = st.number_input("Longitude", value=-74.0060, min=-180.0, max=180.0, format="%.4f")
+        lat = st.number_input("Latitude", value=40.7128, min_value=-90.0, max_value=90.0, format="%.4f")
+        lon = st.number_input("Longitude", value=-74.0060, min_value=-180.0, max_value=180.0, format="%.4f")
         
         st.subheader("📏 Area Size")
         box_size = st.slider("Box Size (km)", min_value=0.1, max_value=10.0, value=1.0, step=0.1)
