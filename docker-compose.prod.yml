@@ -1,0 +1,181 @@
+version: '3.8'
+
+services:
+  # Main API Server - Production Optimized
+  api:
+    build: .
+    ports:
+      - "${PORT:-8000}:8000"
+      - "9090:9090"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - API_URL=${API_URL}
+    volumes:
+      - ./data:/app/data:ro
+      - ./models:/app/models:ro
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  # Frontend (React) - Production Build
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    environment:
+      - REACT_APP_API_URL=${API_URL}
+      - REACT_APP_WS_URL=${WS_URL}
+      - REACT_APP_ENVIRONMENT=production
+    depends_on:
+      - api
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Celery Worker for background tasks
+  celery-worker:
+    build: .
+    command: celery -A api.main_api worker --loglevel=info -c 2
+    environment:
+      - PYTHONUNBUFFERED=1
+      - C_FORCE_ROOT=true
+      - ENVIRONMENT=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - SECRET_KEY=${SECRET_KEY}
+    volumes:
+      - ./data:/app/data:ro
+      - ./models:/app/models:ro
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+      - postgres
+      - api
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Celery Beat for scheduled tasks
+  celery-beat:
+    build: .
+    command: celery -A api.main_api beat --loglevel=info
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - SECRET_KEY=${SECRET_KEY}
+    volumes:
+      - ./data:/app/data:ro
+      - ./celerybeat-schedule:/app/celerybeat-schedule
+    depends_on:
+      - redis
+      - postgres
+      - api
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 512M
+
+  # Redis for caching and message broker
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # PostgreSQL for data storage
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: earthai
+      POSTGRES_USER: earthai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    command: postgres -c shared_preload_libraries=pg_stat_statements -c max_connections=200
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U earthai -d earthai"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+networks:
+  earthai-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  postgres-data:

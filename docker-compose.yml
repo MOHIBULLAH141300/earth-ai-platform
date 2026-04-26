@@ -1,0 +1,255 @@
+version: '3.8'
+
+services:
+  # Main API Server
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+      - "9090:9090"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DATABASE_URL=postgresql://earthai:change-me@postgres:5432/earthai
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend (React)
+  frontend:
+    image: node:18-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm start"
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://api:8000/api
+      - REACT_APP_WS_URL=ws://api:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - api
+    networks:
+      - earthai-network
+    restart: unless-stopped
+
+  # Celery Worker for background tasks
+  celery-worker:
+    build: .
+    command: celery -A api.main_api worker --loglevel=info -c 4
+    environment:
+      - PYTHONUNBUFFERED=1
+      - C_FORCE_ROOT=true
+      - DATABASE_URL=postgresql://earthai:change-me@postgres:5432/earthai
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+      - postgres
+      - api
+    networks:
+      - earthai-network
+    restart: unless-stopped
+
+  # Celery Beat for scheduled tasks (Literature scraping, model updates)
+  celery-beat:
+    build: .
+    command: celery -A api.main_api beat --loglevel=info
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://earthai:change-me@postgres:5432/earthai
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    volumes:
+      - ./data:/app/data
+      - ./celerybeat-schedule:/app/celerybeat-schedule
+    depends_on:
+      - redis
+      - postgres
+      - api
+    networks:
+      - earthai-network
+    restart: unless-stopped
+
+  # Redis for caching and message broker
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # PostgreSQL for data storage
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-earthai}
+      POSTGRES_USER: ${POSTGRES_USER:-earthai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    command: postgres -c shared_preload_libraries=pg_stat_statements
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - earthai-network
+    restart: unless-stopped
+
+  # Grafana for visualization and dashboards
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    depends_on:
+      - prometheus
+    networks:
+      - earthai-network
+    restart: unless-stopped
+
+  # MLflow for experiment tracking and model registry
+  mlflow:
+    image: python:3.11-slim
+    command: >
+      bash -c "pip install mlflow psycopg2-binary &&
+               mlflow server 
+               --backend-store-uri postgresql://earthai:change-me@postgres:5432/earthai_mlflow
+               --default-artifact-root /mlflow
+               --host 0.0.0.0 
+               --port 5000"
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    depends_on:
+      - postgres
+    networks:
+      - earthai-network
+    restart: unless-stopped
+
+  # PgAdmin for PostgreSQL administration
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@earthai.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - earthai-network
+    restart: unless-stopped
+
+networks:
+  earthai-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  postgres-data:
+  prometheus-data:
+  grafana-data:
+  mlflow-data:
+  pgadmin-data:
+    restart: unless-stopped
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - earthai-network
+    restart: unless-stopped
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:10.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    networks:
+      - earthai-network
+    restart: unless-stopped
+
+  # Jupyter for experimentation
+  jupyter:
+    build: .
+    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/app/notebooks
+      - ./data:/app/data
+    networks:
+      - earthai-network
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  postgres-data:
+  mlflow-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  earthai-network:
+    driver: bridge

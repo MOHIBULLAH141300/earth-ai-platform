@@ -1,0 +1,47 @@
+# Minimal, installable runtime dependencies for the current backend.
+# Keep this file focused on packages imported by code under api/, services/, and monitoring/.
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.5.0
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.11.0
+scikit-learn>=1.3.0
+xgboost>=2.0.0
+lightgbm>=4.0.0
+torch>=2.1.0
+stable-baselines3>=2.2.0
+gymnasium>=0.29.0
+pgmpy>=0.1.24
+networkx>=3.1
+scikit-fuzzy>=0.4.2
+optuna>=3.4.0
+earthengine-api>=0.1.380
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+requests>=2.31.0
+aiohttp>=3.9.0
+redis>=5.0.0
+celery>=5.3.0
+prometheus-client>=0.19.0
+psutil>=5.9.0
+loguru>=0.7.2
+httpx>=0.25.0
+
+# NLP & Literature Scraping
+transformers>=4.30.0
+torch>=2.1.0
+spacy>=3.7.0
+feedparser>=6.0.0
+beautifulsoup4>=4.12.0
+selenium>=4.12.0
+
+# Frontend & Visualization
+plotly>=5.17.0
+folium>=0.14.0
+dash>=2.14.0
+
+# Developer/test tooling
+pytest>=7.4.0
+black>=23.0.0
+flake8>=6.0.0
