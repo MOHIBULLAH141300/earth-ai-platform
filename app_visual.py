@@ -54,8 +54,8 @@ st.markdown("""
 st.markdown('<h1 class="main-header">🌍 EarthAI Platform</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #666;">Professional Earth Science Analysis & AI Platform</p>', unsafe_allow_html=True)
 
-# API Base URL - Use localhost for development, render URL for production
-API_BASE = "http://localhost:8000" if os.environ.get("ENVIRONMENT") != "production" else "https://earth-ai-platform.onrender.com/api"
+# API Base URL - Use the same host since we're running everything in Streamlit
+API_BASE = "https://earth-ai-platform.onrender.com"
 
 # Sidebar for controls
 with st.sidebar:
