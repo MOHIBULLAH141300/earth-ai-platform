@@ -1,0 +1,146 @@
+version: '3.8'
+
+# FREE TIER OPTIMIZED - Railway/Render Free Deployment
+# Minimized resource usage for free tiers
+
+services:
+  # Main API Server - Free Tier Optimized
+  api:
+    build: .
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - NLP_DEVICE=cpu
+      - MODEL_DEVICE=cpu
+      - MAX_CONCURRENT_TASKS=1
+      - API_WORKERS=1
+      - ENABLE_MONITORING=False
+      - PROMETHEUS_ENABLED=False
+    volumes:
+      - ./data:/app/data:ro
+      - ./models:/app/models:ro
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/system/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Frontend (React) - Production Build
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    environment:
+      - REACT_APP_API_URL=${API_URL}
+      - REACT_APP_WS_URL=${WS_URL}
+      - REACT_APP_ENVIRONMENT=production
+    depends_on:
+      - api
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # Single Celery Worker (Free tier optimized)
+  celery-worker:
+    build: .
+    command: celery -A api.main_api worker --loglevel=info -c 1
+    environment:
+      - PYTHONUNBUFFERED=1
+      - C_FORCE_ROOT=true
+      - ENVIRONMENT=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - NLP_DEVICE=cpu
+      - MODEL_DEVICE=cpu
+    volumes:
+      - ./data:/app/data:ro
+      - ./models:/app/models:ro
+    depends_on:
+      - redis
+      - postgres
+      - api
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # Redis - Minimal memory usage
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+
+  # PostgreSQL - Minimal configuration
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: earthai
+      POSTGRES_USER: earthai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - earthai-network
+    restart: unless-stopped
+    command: postgres -c shared_preload_libraries=pg_stat_statements -c max_connections=50 -c shared_buffers=32MB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U earthai -d earthai"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+networks:
+  earthai-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  postgres-data:

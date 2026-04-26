@@ -1,0 +1,40 @@
+[build]
+builder = "dockerfile"
+
+[deploy]
+healthcheckPath = "/api/system/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Free tier optimized environment variables
+[env]
+ENVIRONMENT = "production"
+SECRET_KEY = { generateValue = true }
+NLP_DEVICE = "cpu"
+MODEL_DEVICE = "cpu"
+MAX_CONCURRENT_TASKS = "1"
+API_WORKERS = "1"
+ENABLE_MONITORING = "false"
+PROMETHEUS_ENABLED = "false"
+
+# Service-specific settings for free tier
+[[services]]
+id = "api"
+source = "Dockerfile"
+ports = ["8000"]
+
+[[services]]
+id = "frontend"
+source = "Dockerfile.frontend"
+ports = ["80"]
+
+[[services]]
+id = "postgres"
+image = "postgres:15-alpine"
+ports = ["5432"]
+
+[[services]]
+id = "redis"
+image = "redis:7-alpine"
+ports = ["6379"]
