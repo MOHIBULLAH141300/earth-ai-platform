@@ -3,21 +3,25 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies with fallback for different Debian versions
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     git \
     libgomp1 \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    curl \
+    && rm -rf /var/lib/apt/lists/* || \
+    apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    git \
+    libgomp1 \
+    libgl1 \
     libglib2.0-0 \
     curl \
     && rm -rf /var/lib/apt/lists/*
-
-# Try to install OpenGL libraries (optional for some ML libraries)
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    && rm -rf /var/lib/apt/lists/* || \
-    echo "OpenGL libraries not available, continuing without them"
 
 # Copy requirements first for better caching
 COPY requirements.txt .
