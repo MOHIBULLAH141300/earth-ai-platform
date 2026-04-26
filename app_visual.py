@@ -3,6 +3,7 @@ import requests
 import folium
 import pandas as pd
 import json
+import os
 from datetime import datetime, timedelta
 import time
 
@@ -53,8 +54,8 @@ st.markdown("""
 st.markdown('<h1 class="main-header">🌍 EarthAI Platform</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #666;">Professional Earth Science Analysis & AI Platform</p>', unsafe_allow_html=True)
 
-# API Base URL
-API_BASE = "https://earth-ai-platform.onrender.com"
+# API Base URL - Use localhost for development, render URL for production
+API_BASE = "http://localhost:8000" if os.environ.get("ENVIRONMENT") != "production" else "https://earth-ai-platform.onrender.com/api"
 
 # Sidebar for controls
 with st.sidebar:
