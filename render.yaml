@@ -1,0 +1,61 @@
+services:
+  # API Service
+  - type: web
+    name: earthai-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/system/health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: NLP_DEVICE
+        value: cpu
+      - key: MODEL_DEVICE
+        value: cpu
+      - key: MAX_CONCURRENT_TASKS
+        value: 1
+      - key: API_WORKERS
+        value: 1
+      - key: ENABLE_MONITORING
+        value: false
+      - key: PROMETHEUS_ENABLED
+        value: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: earthai-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: earthai-redis
+          property: connectionString
+
+  # Frontend Service
+  - type: web
+    name: earthai-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/build
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://earthai-api.onrender.com/api/*
+    autoDeploy: true
+
+  # PostgreSQL Database
+  - type: pserv
+    name: earthai-db
+    env: docker
+    dockerfilePath: ./Dockerfile.postgres
+    disk:
+      name: earthai-db-data
+      mountPath: /var/lib/postgresql/data
+      sizeGB: 1
+
+  # Redis
+  - type: redis
+    name: earthai-redis
+    plan: free
+    ipAllowList: []

@@ -26,6 +26,7 @@ from services.task_orchestrator import (
 from services.literature_scraper import (
     get_literature_service, ResearchSource
 )
+from api.routers import earth_science
 
 logger = logging.getLogger(__name__)
 
@@ -650,15 +651,24 @@ async def root():
         }
     }
 
+# Include Earth Science Router
+app.include_router(earth_science.router)
+
 @app.get("/api")
 async def api_root():
     """API documentation"""
     return {
         "version": "2.0.0",
         "title": "EarthAI Platform - Enhanced API",
-        "description": "Complete REST API for Earth system modeling",
+        "description": "Complete REST API for Earth system modeling with Google Earth Engine-style interface",
         "base_url": "/api",
-        "documentation": "/api/docs"
+        "documentation": "/api/docs",
+        "features": [
+            "Interactive satellite maps",
+            "AI-powered environmental analysis",
+            "Real-time data processing",
+            "Professional Earth science tools"
+        ]
     }
 
 if __name__ == "__main__":

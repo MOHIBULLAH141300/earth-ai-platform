@@ -10,12 +10,14 @@ import './components/LandingPage.css';
 import './components/ResearchWizard.css';
 import './components/UserGuide.css';
 import './components/HelpButton.css';
+import './components/EarthScienceDashboard.css';
 import LandingPage from './components/LandingPage';
 import ResearchWizard from './components/ResearchWizard';
 import Dashboard from './components/Dashboard';
 import ChatbotPanel from './components/ChatbotPanel';
 import TaskManager from './components/TaskManager';
 import { VisualizationPanel, SystemStatus } from './components/VisualizationPanel';
+import EarthScienceDashboard from './components/EarthScienceDashboard';
 import HelpButton from './components/HelpButton';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
@@ -189,6 +191,12 @@ function App() {
             📊 Dashboard
           </button>
           <button
+            className={`nav-btn ${activeTab === 'earth-science' ? 'active' : ''}`}
+            onClick={() => setActiveTab('earth-science')}
+          >
+            🌍 Earth Science
+          </button>
+          <button
             className={`nav-btn ${activeTab === 'chatbot' ? 'active' : ''}`}
             onClick={() => setActiveTab('chatbot')}
           >
@@ -221,6 +229,13 @@ function App() {
               userId={userId}
               tasks={userTasks}
               onTaskCreate={createTaskFromIntent}
+              onNotification={addNotification}
+            />
+          )}
+
+          {activeTab === 'earth-science' && (
+            <EarthScienceDashboard
+              userId={userId}
               onNotification={addNotification}
             />
           )}
